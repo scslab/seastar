@@ -110,6 +110,9 @@ public:
     virtual void close() override {
         _reg.unregister();
         _closed = true;
+        _state->_queue.abort(
+            std::make_exception_ptr(
+                std::system_error(ECONNABORTED, std::system_category())));
     }
 };
 
