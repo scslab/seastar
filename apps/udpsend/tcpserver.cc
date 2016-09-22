@@ -5,15 +5,28 @@
 using namespace net;
 
 class tcp_server {
+private:
+  tcp::listener _listener;
+
 public:
   future<> start(uint16_t port)  {
-    return make_ready_future<>();
+    ipv4_addr addr{port};
+    listen_options lo;
+    lo.proto = transport::TCP;
+    lo.reuse_address = true;
+    _listener = engine().listen(make_ipv4_address(addr), lo);
+
+    return keep_doing([this] {
+      return _listener.accept().then([this] (connected_socket s, socket_address a) {
+        std::cout << "Accepted connection from " << a << "\n";
+      });
+    });
   }
 
   future<> stop() {
     return make_ready_future<>();
   }
-}
+};
 
 namespace bpo = boost::program_options;
 
