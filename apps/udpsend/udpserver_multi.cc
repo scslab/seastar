@@ -28,7 +28,7 @@ std::tuple<double,double> tostats(uint64_t recvd, double secs) {
 class udp_server {
 private:
   bool _run;
-  promise<> _done; 
+  promise<> _done;
   udp_channel _sock;
   timer<> _stats_timer;
   get_time::time_point _ts0;
@@ -45,14 +45,14 @@ private:
 public:
   udp_server(void) noexcept
     : _run{false}, _done{}, _sock{}, _stats_timer{}, _ts0{}, _rcvd{0}
-    ,  _last_recvd{0}, _ts0set{false}
+    ,  _last_recvd{0}, _reply{false}, _ts0set{false}
   {}
 
-  uint64_t get_recvd(void) const {
+  uint64_t get_recvd(void) const noexcept {
     return _rcvd;
   }
 
-  uint64_t latest_stats(void) {
+  uint64_t latest_stats(void) noexcept {
     uint64_t myrecvd, iter_recvd;
 
     myrecvd = _rcvd; // grab snapshot
@@ -65,7 +65,7 @@ public:
     return iter_recvd;
   }
 
-  uint64_t final_stats(void) {
+  uint64_t final_stats(void) const noexcept {
     uint64_t myrecvd, elapsed_ns;
 
     if (not _ts0set) {
@@ -147,7 +147,7 @@ int main(int ac, char ** av) {
     bool dostats = not config.count("nostats");
 
     // run server
-    server->start().then([&] () mutable {
+    server->start().then([&] () {
       // on exit
       engine().at_exit([&] {
         if (dostats) {

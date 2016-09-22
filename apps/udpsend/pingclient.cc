@@ -21,6 +21,7 @@ private:
   bool _run {false};
   promise<> _done {};
   udp_channel _sock {};
+  bool _reply {false};
   uint64_t _delay {0};
   ipv4_addr _server_addr {};
   uint64_t _sent {};
@@ -52,9 +53,10 @@ public:
       _tsCorrupted = true;
   }
 
-  void start(ipv4_addr server_addr, uint64_t delay) {
+  void start(ipv4_addr server_addr, uint64_t delay, bool reply) {
     _sock = engine().net().make_udp_channel();
     _server_addr = server_addr;
+    _reply = reply;
     _delay = delay;
     _run = true;
 
@@ -73,19 +75,27 @@ public:
               } catch (...) {
                 _errs++;
               }
-              return _sock.receive().then([this] (udp_datagram dgram) {
-                _rcvd++;
-                if (not _tsCorrupted) {
-                  auto ts1 = get_time::now();
-                  uint64_t elapsed_ns = std::chrono::duration_cast<ns>(ts1 - _ts0).count();
-                  _stats.add(elapsed_ns);
-                }
+              if (_reply) {
+                return _sock.receive().then([this] (udp_datagram dgram) {
+                  _rcvd++;
+                  if (not _tsCorrupted) {
+                    auto ts1 = get_time::now();
+                    uint64_t elapsed_ns = std::chrono::duration_cast<ns>(ts1 - _ts0).count();
+                    _stats.add(elapsed_ns);
+                  }
+                  if (_delay > 0) {
+                    return sleep(std::chrono::nanoseconds(_delay));
+                  } else {
+                    return make_ready_future<>();
+                  }
+                });
+              } else {
                 if (_delay > 0) {
                   return sleep(std::chrono::nanoseconds(_delay));
                 } else {
                   return make_ready_future<>();
                 }
-              });
+              }
             });
         }).finally([this] {
           _done.set_value();
@@ -119,6 +129,7 @@ int main(int ac, char ** av) {
   // client options
   app.add_options()
       ("server", bpo::value<std::string>(), "Server address")
+      ("reply", "Expect server to echo UDP packet back to client?")
       ("delay", bpo::value<uint64_t>()->default_value(0), "Sleep between samples (ns)")
       ;
 
@@ -133,10 +144,11 @@ int main(int ac, char ** av) {
       // get config
       auto&& config = app.configuration();
       ipv4_addr addr = config["server"].as<std::string>();
+      bool reply = config.count("reply");
       uint64_t delay = config["delay"].as<uint64_t>();
 
       // start
-      client->invoke_on_all(&udp_client::start, addr, delay);
+      client->invoke_on_all(&udp_client::start, addr, delay, reply);
 
       // stats timer
       stats_timer.set_callback([&] {

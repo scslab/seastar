@@ -214,8 +214,8 @@ apps = [
     'apps/iotune/iotune',
     'apps/udpsend/pingclient',
     'apps/udpsend/udpclient',
-    'apps/udpsend/udpserver',
-    'apps/udpsend/udpserver2',
+    'apps/udpsend/udpserver_single',
+    'apps/udpsend/udpserver_multi',
     ]
 
 all_artifacts = apps + tests + ['libseastar.a', 'seastar.pc']
@@ -389,8 +389,8 @@ deps = {
     'apps/iotune/iotune': ['apps/iotune/iotune.cc', 'apps/iotune/fsqual.cc'] + core,
     'apps/udpsend/pingclient': ['apps/udpsend/pingclient.cc'] + libnet + core,
     'apps/udpsend/udpclient': ['apps/udpsend/udpclient.cc'] + libnet + core,
-    'apps/udpsend/udpserver': ['apps/udpsend/udpserver.cc'] + libnet + core,
-    'apps/udpsend/udpserver2': ['apps/udpsend/udpserver2.cc'] + libnet + core,
+    'apps/udpsend/udpserver_single': ['apps/udpsend/udpserver_single.cc'] + libnet + core,
+    'apps/udpsend/udpserver_multi': ['apps/udpsend/udpserver_multi.cc'] + libnet + core,
     'tests/blkdiscard_test': ['tests/blkdiscard_test.cc'] + core,
     'tests/sstring_test': ['tests/sstring_test.cc'] + core,
     'tests/httpd': ['tests/httpd.cc'] + http + core + boost_test_lib,
