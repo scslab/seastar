@@ -16,6 +16,64 @@ distributed<tcp_client> clients;
 constexpr uint64_t PKT_SIZE = 24;
 char data[PKT_SIZE];
 
+class tcp_client {
+private:
+  ipv4_addr _server_addr{};
+  unsigned _nconns{1};
+  bool _reply{};
+  uint64_t _delay{};
+  uint64_t _sent{};
+  uint64_t _errs{};
+  uint64_t _rcvd{};
+  get_time::time_point _ts0{};
+  accum _stats{};
+
+  future<> run_client(connected_socket &&fd);
+
+public:
+  void add_sent(void) noexcept { _sent++; }
+  void add_rcvd(void) noexcept { _rcvd++; }
+  void add_errs(void) noexcept { _errs++; }
+  void add_rtt(uint64_t t_ns) { _stats.add(t_ns); }
+
+  void latest_stats(void) {
+    std::cout << "Core " << engine().cpu_id() << ": ";
+    std::cout << "Out: " << _sent << " pps, ";
+    std::cout << "Err: " << _errs << " pps\n";
+    _sent = 0;
+    _errs = 0;
+    if (_reply) {
+      std::cout << "        Avg (ns): " << _stats.average();
+      std::cout << ", Dev (ns): " << _stats.stddev();
+      std::cout << ", Min (ns): " << _stats.min();
+      std::cout << ", Max (ns): " << _stats.max();
+      std::cout << "\n";
+      _stats.clear();
+    }
+  }
+
+  future<> start(ipv4_addr server_addr, unsigned nconns, bool reply, uint64_t delay) {
+    _server_addr = server_addr;
+    _nconns = nconns;
+    _reply = reply;
+    _delay = delay;
+
+    for (unsigned i = 0; i < _nconns; i++) {
+      auto addr = make_ipv4_address(_server_addr);
+      socket_address local = socket_address(::sockaddr_in{AF_INET, INADDR_ANY, {0}});
+      engine().net().connect(addr, local, protocol).then([this] (connected_socket fd) {
+        run_client(std::move(fd));
+      });
+    }
+    return make_ready_future();
+  }
+
+  future<> stop() {
+    // TODO: Handle shutdown
+    return make_ready_future();
+  }
+};
+
 class tcp_conn {
 private:
   tcp_client & _client;
@@ -98,67 +156,11 @@ public:
   }
 };
 
-class tcp_client {
-private:
-  ipv4_addr _server_addr{};
-  unsigned _nconns{1};
-  bool _reply{};
-  uint64_t _delay{};
-  uint64_t _sent{};
-  uint64_t _errs{};
-  uint64_t _rcvd{};
-  get_time::time_point _ts0{};
-  accum _stats{};
-
-  future<> run_client(connected_socket &&fd) {
-    return do_with(new tcp_conn(*this, std::move(fd), _reply, _delay), [] (auto & conn) {
-      return conn->run();
-    });
-  }
-
-public:
-  void add_sent(void) noexcept { _sent++; }
-  void add_rcvd(void) noexcept { _rcvd++; }
-  void add_errs(void) noexcept { _errs++; }
-  void add_rtt(uint64_t t_ns) { _stats.add(t_ns); }
-
-  void latest_stats(void) {
-    std::cout << "Core " << engine().cpu_id() << ": ";
-    std::cout << "Out: " << _sent << " pps, ";
-    std::cout << "Err: " << _errs << " pps\n";
-    _sent = 0;
-    _errs = 0;
-    if (_reply) {
-      std::cout << "        Avg (ns): " << _stats.average();
-      std::cout << ", Dev (ns): " << _stats.stddev();
-      std::cout << ", Min (ns): " << _stats.min();
-      std::cout << ", Max (ns): " << _stats.max();
-      std::cout << "\n";
-      _stats.clear();
-    }
-  }
-
-  future<> start(ipv4_addr server_addr, unsigned nconns, bool reply, uint64_t delay) {
-    _server_addr = server_addr;
-    _nconns = nconns;
-    _reply = reply;
-    _delay = delay;
-
-    for (unsigned i = 0; i < _nconns; i++) {
-      auto addr = make_ipv4_address(_server_addr);
-      socket_address local = socket_address(::sockaddr_in{AF_INET, INADDR_ANY, {0}});
-      engine().net().connect(addr, local, protocol).then([this] (connected_socket fd) {
-        run_client(std::move(fd));
-      });
-    }
-    return make_ready_future();
-  }
-
-  future<> stop() {
-    // TODO: Handle shutdown
-    return make_ready_future();
-  }
-};
+future<> tcp_client::run_client(connected_socket &&fd) {
+  return do_with(new tcp_conn(*this, std::move(fd), _reply, _delay), [] (auto & conn) {
+    return conn->run();
+  });
+}
 
 namespace po = boost::program_options;
 
