@@ -104,14 +104,13 @@ future<> tcp_server::run_client(connected_socket &&fd) {
 }
 
 uint64_t tcp_server::latest_stats(void) noexcept {
-  // uint64_t myrecvd = _rcvd;
-  // uint64_t iter_recvd = myrecvd - _last_recvd;
-  // auto stats = tostats(iter_recvd, 1);
-  // printf("  Core %2u:  %2.3f Mpps  %4.3f MBs\n",
-  //   engine().cpu_id(), std::get<0>(stats), std::get<1>(stats));
-  // _last_recvd = myrecvd;
-  // return iter_recvd;
-  return 0;
+  uint64_t myrecvd = _rcvd;
+  uint64_t iter_recvd = myrecvd - _last_recvd;
+  auto stats = tostats(iter_recvd, 1);
+  printf("  Core %2u:  %2.3f Mpps  %4.3f MBs\n",
+    engine().cpu_id(), std::get<0>(stats), std::get<1>(stats));
+  _last_recvd = myrecvd;
+  return iter_recvd;
 }
 
 uint64_t tcp_server::final_stats(void) const noexcept {
@@ -140,8 +139,7 @@ future<> tcp_server::start(uint16_t port, bool reply)  {
         _ts0 = get_time::now();
         _ts0set = true;
       }
-      // XXX: Don't return client future if want handle more than one at time
-      return run_client(std::move(fd));
+      run_client(std::move(fd));
     });
   });
 }

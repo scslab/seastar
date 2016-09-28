@@ -15,7 +15,6 @@ using get_time = steady_clock_type;
 transport protocol = transport::TCP;
 class tcp_conn;
 class tcp_client;
-distributed<tcp_client> clients;
 constexpr uint64_t PKT_SIZE = 24;
 char data[PKT_SIZE];
 
@@ -127,8 +126,13 @@ private:
   }
 
   future<stop_iteration> ping(void) {
-    return _tx.write(data, PKT_SIZE).then([this] {
-      _client.add_sent();
+    return _tx.write(data, PKT_SIZE).then_wrapped([this] (auto&& f) {
+      try {
+        f.get();
+        _client.add_sent();
+      } catch (...) {
+        _client.add_errs();
+      }
       return _tx.flush().then([] {
         return stop_iteration::no;
       });
@@ -170,6 +174,7 @@ namespace po = boost::program_options;
 int main(int ac, char ** av) {
   app_template app;
   timer<> stats_timer;
+  auto clients = std::make_unique<distributed<tcp_client>>();
 
   app.add_options()
     ("server", po::value<std::string>(), "Server address")
@@ -179,7 +184,7 @@ int main(int ac, char ** av) {
     ;
 
   return app.run_deprecated(ac, av, [&] {
-    clients.start().then([&] () mutable {
+    clients->start().then([&] () mutable {
       auto&& config = app.configuration();
       auto server = config["server"].as<std::string>();
       auto ncon = config["conn"].as<unsigned>();
@@ -187,13 +192,13 @@ int main(int ac, char ** av) {
       uint64_t delay = config["delay"].as<uint64_t>();
 
       engine().at_exit([&] {
-        return clients.stop();
+        return clients->stop();
       });
 
-      clients.invoke_on_all(&tcp_client::start, ipv4_addr{server}, ncon, reply, delay);
+      clients->invoke_on_all(&tcp_client::start, ipv4_addr{server}, ncon, reply, delay);
 
       stats_timer.set_callback([&] {
-        clients.invoke_on_all(&tcp_client::latest_stats);
+        clients->invoke_on_all(&tcp_client::latest_stats);
       });
       stats_timer.arm_periodic(1s);
     });
