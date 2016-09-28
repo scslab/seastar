@@ -3,6 +3,7 @@
 #include "core/reactor.hh"
 
 constexpr uint64_t PKT_SIZE = 24;
+constexpr uint64_t TOTAL_SZ = PKT_SIZE + 40;
 
 using namespace net;
 using namespace seastar;
@@ -17,7 +18,27 @@ std::tuple<double,double> tostats(uint64_t recvd, double secs) {
   return std::make_tuple(mpps, mbytes);
 }
 
-class tcp_server;
+class tcp_server {
+private:
+  server_socket _sock{};
+  bool _reply{false};
+  uint64_t _rcvd{0};
+  uint64_t _sent{0};
+  uint64_t _last_recvd{0};
+  bool _ts0set{false};
+  get_time::time_point _ts0{};
+
+  future<> run_client(connected_socket &&fd);
+
+public:
+  void add_rcvd(void) noexcept { _rcvd++; }
+  void add_sent(void) noexcept { _sent++; }
+  uint64_t latest_stats(void) noexcept;
+  uint64_t final_stats(void) const noexcept;
+
+  future<> start(uint16_t port, bool reply);
+  future<> stop();
+};
 
 class tcp_conn {
 private:
@@ -76,73 +97,58 @@ public:
   }
 };
 
-class tcp_server {
-private:
-  server_socket _sock{};
-  bool _reply{false};
-  uint64_t _rcvd{0};
-  uint64_t _sent{0};
-  uint64_t _last_recvd{0};
-  bool _ts0set{false};
-  get_time::time_point _ts0{};
+future<> tcp_server::run_client(connected_socket &&fd) {
+  return do_with(new tcp_conn(*this, std::move(fd), _reply), [] (auto & conn) {
+    return conn->run();
+  });
+}
 
-  future<> run_client(connected_socket &&fd) {
-    return do_with(new tcp_conn(*this, std::move(fd), _reply), [] (auto & conn) {
-      return conn->run();
+uint64_t tcp_server::latest_stats(void) noexcept {
+  uint64_t myrecvd = _rcvd;
+  uint64_t iter_recvd = myrecvd - _last_recvd;
+  auto stats = tostats(iter_recvd, 1);
+  printf("  Core %2u:  %2.3f Mpps  %4.3f MBs\n",
+    engine().cpu_id(), std::get<0>(stats), std::get<1>(stats));
+  _last_recvd = myrecvd;
+  return iter_recvd;
+}
+
+uint64_t tcp_server::final_stats(void) const noexcept {
+  if (not _ts0set) {
+    return 0;
+  }
+  auto t = std::chrono::duration_cast<ns>(get_time::now() - _ts0).count();
+  uint64_t myrecvd = _rcvd;
+  auto stats = tostats(myrecvd, double(t) / 1000000000.0);
+  printf("  Core %2u: %2.3f Mpps  %4.3f MBs\n",
+    engine().cpu_id(), std::get<0>(stats),std::get<1>(stats));
+  return myrecvd;
+}
+
+future<> tcp_server::start(uint16_t port, bool reply)  {
+  ipv4_addr addr{port};
+  listen_options lo;
+  lo.proto = transport::TCP;
+  lo.reuse_address = true;
+  _sock = engine().listen(make_ipv4_address(addr), lo);
+  _reply = reply;
+
+  return keep_doing([this] {
+    return _sock.accept().then([this] (connected_socket fd, socket_address a) {
+      if (not _ts0set) {
+        _ts0 = get_time::now();
+        _ts0set = true;
+      }
+      // XXX: Don't return client future if want handle more than one at time
+      return run_client(std::move(fd));
     });
-  }
+  });
+}
 
-public:
-  void add_rcvd(void) noexcept { _rcvd++; }
-  void add_sent(void) noexcept { _sent++; }
-
-  uint64_t latest_stats(void) noexcept {
-    uint64_t myrecvd = _rcvd;
-    uint64_t iter_recvd = myrecvd - _last_recvd;
-    auto stats = tostats(iter_recvd, 1);
-    printf("  Core %2u:  %2.3f Mpps  %4.3f MBs\n",
-      engine().cpu_id(), std::get<0>(stats), std::get<1>(stats));
-    _last_recvd = myrecvd;
-    return iter_recvd;
-  }
-
-  uint64_t final_stats(void) const noexcept {
-    if (not _ts0set) {
-      return 0;
-    }
-    auto t = std::chrono::duration_cast<ns>(get_time::now() - _ts0).count();
-    uint64_t myrecvd = _rcvd;
-    auto stats = tostats(myrecvd, double(t) / 1000000000.0);
-    printf("  Core %2u: %2.3f Mpps  %4.3f MBs\n",
-      engine().cpu_id(), std::get<0>(stats),std::get<1>(stats));
-    return myrecvd;
-  }
-
-  future<> start(uint16_t port, bool reply)  {
-    ipv4_addr addr{port};
-    listen_options lo;
-    lo.proto = transport::TCP;
-    lo.reuse_address = true;
-    _sock = engine().listen(make_ipv4_address(addr), lo);
-    _reply = reply;
-
-    return keep_doing([this] {
-      return _sock.accept().then([this] (connected_socket fd, socket_address a) {
-        if (not _ts0set) {
-          _ts0 = get_time::now();
-          _ts0set = true;
-        }
-        // XXX: Don't return client future if want handle more than one at time
-        return run_client(std::move(fd));
-      });
-    });
-  }
-
-  future<> stop() {
-    // TODO: Handle shutdown
-    return make_ready_future<>();
-  }
-};
+future<> tcp_server::stop() {
+  // TODO: Handle shutdown
+  return make_ready_future<>();
+}
 
 namespace po = boost::program_options;
 
@@ -165,9 +171,9 @@ int main(int ac, char** av) {
     bool reply = config.count("reply");
     auto server = new distributed<tcp_server>;
 
-    server->start().then([server = std::move(server), port] () mutable {
+    server->start().then([&, server = std::move(server)] () mutable {
       // stop
-      engine().at_exit([server] {
+      engine().at_exit([&] {
         if (dostats) {
           printf("\n-------------------------------------------------\n");
           printf("Summary for all cores...\n");

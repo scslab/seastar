@@ -17,7 +17,7 @@ distributed<tcp_client> clients;
 
 class tcp_conn {
 private:
-  tcp_server & _server;
+  tcp_client & _client;
   connected_socket _fd;
   input_stream<char> _rx;
   output_stream<char> _tx;
@@ -25,8 +25,8 @@ private:
   uint64_t _delay;
 
 public:
-  tcp_conn(tcp_server & server, connected_socket &&fd, bool reply, uint64_t delay)
-    : _server{server}
+  tcp_conn(tcp_client & client, connected_socket &&fd, bool reply, uint64_t delay)
+    : _client{client}
     , _fd{std::move(fd)}
     , _rx{_fd.input()}
     , _tx{_fd.output()}
@@ -53,6 +53,9 @@ private:
   }
 
 public:
+  void latest_stats(void) {
+  }
+
   future<> start(ipv4_addr server_addr, unsigned nconns, bool reply, uint64_t delay) {
     _server_addr = server_addr;
     _nconns = nconns;
@@ -60,7 +63,7 @@ public:
     _delay = delay;
 
     for (unsigned i = 0; i < _nconns; i++) {
-      auto addr = make_ipv4_address(_server_addr)
+      auto addr = make_ipv4_address(_server_addr);
       socket_address local = socket_address(::sockaddr_in{AF_INET, INADDR_ANY, {0}});
       engine().net().connect(addr, local, protocol).then([this] (connected_socket fd) {
         run_client(std::move(fd));
@@ -82,10 +85,10 @@ int main(int ac, char ** av) {
   timer<> stats_timer;
 
   app.add_options()
-    ("server", bpo::value<std::string>(), "Server address")
-    ("conn", bpo::value<unsigned>()->default_value(1), "# connections per cpu")
+    ("server", po::value<std::string>(), "Server address")
+    ("conn", po::value<unsigned>()->default_value(1), "# connections per cpu")
     ("reply", "Expect server to echo TCP packet back to client?")
-    ("delay", bpo::value<uint64_t>()->default_value(0), "Sleep between samples (ns)")
+    ("delay", po::value<uint64_t>()->default_value(0), "Sleep between samples (ns)")
     ;
 
   return app.run_deprecated(ac, av, [&] {
@@ -97,13 +100,13 @@ int main(int ac, char ** av) {
       uint64_t delay = config["delay"].as<uint64_t>();
 
       engine().at_exit([&] {
-        return clients->stop();
+        return clients.stop();
       });
 
       clients.invoke_on_all(&tcp_client::start, ipv4_addr{server}, ncon, reply, delay);
 
       stats_timer.set_callback([&] {
-        clients->invoke_on_all(&tcp_client::latest_stats);
+        clients.invoke_on_all(&tcp_client::latest_stats);
       });
       stats_timer.arm_periodic(1s);
     });
