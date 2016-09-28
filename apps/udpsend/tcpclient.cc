@@ -9,11 +9,12 @@ using namespace std::chrono_literals;
 using ns = std::chrono::nanoseconds;
 using get_time = steady_clock_type;
 
-constexpr uint64_t PKT_SIZE = 24;
 transport protocol = transport::TCP;
 class tcp_conn;
 class tcp_client;
 distributed<tcp_client> clients;
+constexpr uint64_t PKT_SIZE = 24;
+char data[PKT_SIZE];
 
 class tcp_conn {
 private:
@@ -23,6 +24,55 @@ private:
   output_stream<char> _tx;
   bool _reply;
   uint64_t _delay;
+  get_time::time_point _ts0;
+
+  void save_rtt(void) {
+    auto ts1 = get_time::now();
+    auto t_ns = std::chrono::duration_cast<ns>(ts1 - _ts0).count();
+    _client.add_rtt(t_ns);
+  }
+
+  future<stop_iteration> continue_with_delay(void) {
+    if (_delay > 0) {
+      return sleep(std::chrono::nanoseconds(_delay)).then([] {
+        return stop_iteration::no;
+      });
+    } else {
+      return make_ready_future(stop_iteration::no);
+    }
+  }
+
+  future<stop_iteration> pingpong(void) {
+    _ts0 = get_time::now();
+    return _tx.write(data, PKT_SIZE).then_wrapped([this] (auto&& f) {
+      try {
+        f.get();
+        _client.add_sent();
+      } catch (...) {
+        _client.add_errs();
+      }
+      return _tx.flush().then([this] {
+        return _rx.read_exactly(PKT_SIZE).then([this] (temporary_buffer<char> buf) {
+          if (buf) {
+            _client.add_rcvd();
+            save_rtt();
+            return continue_with_delay();
+          } else {
+            return make_ready_future(stop_iteration::yes);
+          }
+        });
+      });
+    });
+  }
+
+  future<stop_iteration> ping(void) {
+    return _tx.write(data, PKT_SIZE).then([this] {
+      _client.add_sent();
+      return _tx.flush().then([] {
+        return stop_iteration::no;
+      });
+    });
+  }
 
 public:
   tcp_conn(tcp_client & client, connected_socket &&fd, bool reply, uint64_t delay)
@@ -32,19 +82,33 @@ public:
     , _tx{_fd.output()}
     , _reply{reply}
     , _delay{delay}
+    , _ts0{}
   {}
 
   future<> run(void) {
-    return make_ready_future();
+    return repeat([this] {
+      if (_reply) {
+        return pingpong();
+      } else {
+        return ping();
+      }
+    }).then([this] {
+      return _tx.close();
+    });
   }
 };
 
 class tcp_client {
 private:
-  ipv4_addr _server_addr;
-  unsigned _nconns;
-  bool _reply;
-  uint64_t _delay;
+  ipv4_addr _server_addr{};
+  unsigned _nconns{1};
+  bool _reply{};
+  uint64_t _delay{};
+  uint64_t _sent{};
+  uint64_t _errs{};
+  uint64_t _rcvd{};
+  get_time::time_point _ts0{};
+  accum _stats{};
 
   future<> run_client(connected_socket &&fd) {
     return do_with(new tcp_conn(*this, std::move(fd), _reply, _delay), [] (auto & conn) {
@@ -53,7 +117,25 @@ private:
   }
 
 public:
+  void add_sent(void) noexcept { _sent++; }
+  void add_rcvd(void) noexcept { _rcvd++; }
+  void add_errs(void) noexcept { _errs++; }
+  void add_rtt(uint64_t t_ns) { _stats.add(t_ns); }
+
   void latest_stats(void) {
+    std::cout << "Core " << engine().cpu_id() << ": ";
+    std::cout << "Out: " << _sent << " pps, ";
+    std::cout << "Err: " << _errs << " pps\n";
+    _sent = 0;
+    _errs = 0;
+    if (_reply) {
+      std::cout << "        Avg (ns): " << _stats.average();
+      std::cout << ", Dev (ns): " << _stats.stddev();
+      std::cout << ", Min (ns): " << _stats.min();
+      std::cout << ", Max (ns): " << _stats.max();
+      std::cout << "\n";
+      _stats.clear();
+    }
   }
 
   future<> start(ipv4_addr server_addr, unsigned nconns, bool reply, uint64_t delay) {

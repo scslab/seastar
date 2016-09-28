@@ -48,7 +48,7 @@ private:
   output_stream<char> _tx;
   bool _reply;
 
-  future<stop_iteration> pingpong(void) {
+  future<stop_iteration> pongping(void) {
     return _rx.read_exactly(PKT_SIZE).then([this] (temporary_buffer<char> buf) {
       if (buf) {
         _server.add_rcvd();
@@ -64,7 +64,7 @@ private:
     });
   }
 
-  future<stop_iteration> ping(void) {
+  future<stop_iteration> pong(void) {
     return _rx.read_exactly(PKT_SIZE).then([this] (temporary_buffer<char> buf) {
       if (buf) {
         _server.add_rcvd();
@@ -87,9 +87,9 @@ public:
   future<> run(void) {
     return repeat([this] {
       if (_reply) {
-        return pingpong();
+        return pongping();
       } else {
-        return ping();
+        return pong();
       }
     }).then([this] {
       return _tx.close();
@@ -160,7 +160,7 @@ int main(int ac, char** av) {
 
   app.add_options()
     ("port", po::value<uint16_t>()->default_value(8080), "TCP server port")
-    ("reply", "Echo UDP packet back to client?")
+    ("reply", "Echo TCP packet back to client?")
     ("nostats", "Don't print out stats")
     ;
 
