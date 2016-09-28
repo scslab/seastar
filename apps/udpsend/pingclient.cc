@@ -42,12 +42,14 @@ public:
       std::cout << "Err: " << _errs << " pps\n";
       _sent = 0;
       _errs = 0;
-      std::cout << "        Avg (ns): " << _stats.average();
-      std::cout << ", Dev (ns): " << _stats.stddev();
-      std::cout << ", Min (ns): " << _stats.min();
-      std::cout << ", Max (ns): " << _stats.max();
-      std::cout << "\n";
-      _stats.clear();
+      if (_reply) {
+        std::cout << "        Avg (ns): " << _stats.average();
+        std::cout << ", Dev (ns): " << _stats.stddev();
+        std::cout << ", Min (ns): " << _stats.min();
+        std::cout << ", Max (ns): " << _stats.max();
+        std::cout << "\n";
+        _stats.clear();
+      }
 
       // we clear the timestamp if in progress to avoid a corrupt value
       _tsCorrupted = true;
