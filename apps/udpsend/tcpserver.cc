@@ -13,11 +13,17 @@ private:
   input_stream<char> _rx;
   output_stream<char> _tx;;
 
-  future<> pingpong(void) {
+  future<stop_iteration> pingpong(void) {
     return _rx.read_exactly(PKT_SIZE).then([this] (temporary_buffer<char> buf) {
-      return _tx.write(buf).then([this] {
-        return _tx.flush();
-      });
+      if (buf) {
+        return _tx.write(std::move(buf)).then([this] {
+          return _tx.flush().then([] {
+            return stop_iteration::no;
+          });
+        });
+      } else {
+        return make_ready_future<stop_iteration>(stop_iteration::yes);
+      }
     });
   }
 
@@ -29,8 +35,11 @@ public:
   {}
 
   future<> run(void) {
-    // TODO: Handle EOF
-    return keep_doing([this] { pingpong() });
+    return repeat([this] {
+      return pingpong();
+    }).then([this] {
+      return _tx.close();
+    });
   }
 };
 
