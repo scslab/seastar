@@ -82,7 +82,9 @@ public:
     , _rx{_fd.input()}
     , _tx{_fd.output()}
     , _reply{reply}
-  {}
+  {
+    _fd.set_nodelay(true);
+  }
 
   future<> run(void) {
     return repeat([this] {

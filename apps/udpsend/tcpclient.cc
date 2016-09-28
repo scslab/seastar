@@ -148,7 +148,9 @@ public:
     , _reply{reply}
     , _delay{delay}
     , _ts0{}
-  {}
+  {
+    _fd.set_nodelay(true);
+  }
 
   future<> run(void) {
     return repeat([this] {
