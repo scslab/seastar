@@ -1,6 +1,9 @@
 #include "core/app-template.hh"
 #include "core/distributed.hh"
 #include "core/reactor.hh"
+#include "core/sleep.hh"
+
+#include "accum.hh"
 
 using namespace net;
 using namespace seastar;
@@ -96,7 +99,7 @@ private:
         return stop_iteration::no;
       });
     } else {
-      return make_ready_future(stop_iteration::no);
+      return make_ready_future<stop_iteration>(stop_iteration::no);
     }
   }
 
@@ -113,10 +116,10 @@ private:
         return _rx.read_exactly(PKT_SIZE).then([this] (temporary_buffer<char> buf) {
           if (buf) {
             _client.add_rcvd();
-            save_rtt();
-            return continue_with_delay();
+            this->save_rtt();
+            return this->continue_with_delay();
           } else {
-            return make_ready_future(stop_iteration::yes);
+            return make_ready_future<stop_iteration>(stop_iteration::yes);
           }
         });
       });
