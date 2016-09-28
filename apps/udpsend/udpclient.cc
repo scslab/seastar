@@ -128,31 +128,25 @@ int main(int ac, char ** av) {
   timer<> stats_timer;
   auto client = std::make_unique<distributed<udp_client>>();
 
-  // client options
   app.add_options()
       ("server", bpo::value<std::string>(), "Server address")
       ("reply", "Expect server to echo UDP packet back to client?")
       ("delay", bpo::value<uint64_t>()->default_value(0), "Sleep between samples (ns)")
       ;
 
-  // run seastar
   return app.run_deprecated(ac, av, [&] {
     client->start().then([&] () mutable {
-      // on exit
-      engine().at_exit([&] {
-        return client->stop();
-      });
-
-      // get config
       auto&& config = app.configuration();
       ipv4_addr addr = config["server"].as<std::string>();
       bool reply = config.count("reply");
       uint64_t delay = config["delay"].as<uint64_t>();
 
-      // start
+      engine().at_exit([&] {
+        return client->stop();
+      });
+
       client->invoke_on_all(&udp_client::start, addr, delay, reply);
 
-      // stats timer
       stats_timer.set_callback([&] {
         client->invoke_on_all(&udp_client::latest_stats);
       });

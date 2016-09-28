@@ -214,6 +214,7 @@ apps = [
     'apps/iotune/iotune',
     'apps/udpsend/udpclient',
     'apps/udpsend/udpserver',
+    'apps/udpsend/tcpclient',
     'apps/udpsend/tcpserver',
     ]
 
@@ -388,6 +389,7 @@ deps = {
     'apps/iotune/iotune': ['apps/iotune/iotune.cc', 'apps/iotune/fsqual.cc'] + core,
     'apps/udpsend/udpclient': ['apps/udpsend/udpclient.cc'] + libnet + core,
     'apps/udpsend/udpserver': ['apps/udpsend/udpserver.cc'] + libnet + core,
+    'apps/udpsend/tcpclient': ['apps/udpsend/tcpclient.cc'] + libnet + core,
     'apps/udpsend/tcpserver': ['apps/udpsend/tcpserver.cc'] + libnet + core,
     'tests/blkdiscard_test': ['tests/blkdiscard_test.cc'] + core,
     'tests/sstring_test': ['tests/sstring_test.cc'] + core,

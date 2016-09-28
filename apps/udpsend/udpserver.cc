@@ -30,7 +30,6 @@ private:
   bool _run;
   promise<> _done;
   udp_channel _sock;
-  timer<> _stats_timer;
   get_time::time_point _ts0;
   uint64_t _rcvd;
   uint64_t _sent;
@@ -44,13 +43,9 @@ private:
 
 public:
   udp_server(void) noexcept
-    : _run{false}, _done{}, _sock{}, _stats_timer{}, _ts0{}, _rcvd{0}
+    : _run{false}, _done{}, _sock{}, _ts0{}, _rcvd{0}
     ,  _last_recvd{0}, _reply{false}, _ts0set{false}
   {}
-
-  uint64_t get_recvd(void) const noexcept {
-    return _rcvd;
-  }
 
   uint64_t latest_stats(void) noexcept {
     uint64_t myrecvd, iter_recvd;
