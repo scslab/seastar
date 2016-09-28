@@ -104,13 +104,14 @@ future<> tcp_server::run_client(connected_socket &&fd) {
 }
 
 uint64_t tcp_server::latest_stats(void) noexcept {
-  uint64_t myrecvd = _rcvd;
-  uint64_t iter_recvd = myrecvd - _last_recvd;
-  auto stats = tostats(iter_recvd, 1);
-  printf("  Core %2u:  %2.3f Mpps  %4.3f MBs\n",
-    engine().cpu_id(), std::get<0>(stats), std::get<1>(stats));
-  _last_recvd = myrecvd;
-  return iter_recvd;
+  // uint64_t myrecvd = _rcvd;
+  // uint64_t iter_recvd = myrecvd - _last_recvd;
+  // auto stats = tostats(iter_recvd, 1);
+  // printf("  Core %2u:  %2.3f Mpps  %4.3f MBs\n",
+  //   engine().cpu_id(), std::get<0>(stats), std::get<1>(stats));
+  // _last_recvd = myrecvd;
+  // return iter_recvd;
+  return 0;
 }
 
 uint64_t tcp_server::final_stats(void) const noexcept {
@@ -157,6 +158,7 @@ int main(int ac, char** av) {
   timer<> stats_timer;
   auto ts0 = get_time::now();
   uint64_t iteration = 0;
+  auto server = std::make_unique<distributed<tcp_server>>();
 
   app.add_options()
     ("port", po::value<uint16_t>()->default_value(8080), "TCP server port")
@@ -169,9 +171,8 @@ int main(int ac, char** av) {
     uint16_t port = config["port"].as<uint16_t>();
     bool dostats = not config.count("nostats");
     bool reply = config.count("reply");
-    auto server = new distributed<tcp_server>;
 
-    server->start().then([&, server = std::move(server)] () mutable {
+    server->start().then([&] () mutable {
       // stop
       engine().at_exit([&] {
         if (dostats) {
