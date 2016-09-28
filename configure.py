@@ -212,10 +212,8 @@ apps = [
     'apps/fair_queue_tester/fair_queue_tester',
     'apps/memcached/memcached',
     'apps/iotune/iotune',
-    'apps/udpsend/pingclient',
     'apps/udpsend/udpclient',
-    'apps/udpsend/udpserver_single',
-    'apps/udpsend/udpserver_multi',
+    'apps/udpsend/udpserver',
     'apps/udpsend/tcpserver',
     ]
 
@@ -388,10 +386,8 @@ deps = {
     'apps/seawreck/seawreck': ['apps/seawreck/seawreck.cc', 'http/http_response_parser.rl'] + core + libnet,
     'apps/fair_queue_tester/fair_queue_tester': ['apps/fair_queue_tester/fair_queue_tester.cc'] + core,
     'apps/iotune/iotune': ['apps/iotune/iotune.cc', 'apps/iotune/fsqual.cc'] + core,
-    'apps/udpsend/pingclient': ['apps/udpsend/pingclient.cc'] + libnet + core,
     'apps/udpsend/udpclient': ['apps/udpsend/udpclient.cc'] + libnet + core,
-    'apps/udpsend/udpserver_single': ['apps/udpsend/udpserver_single.cc'] + libnet + core,
-    'apps/udpsend/udpserver_multi': ['apps/udpsend/udpserver_multi.cc'] + libnet + core,
+    'apps/udpsend/udpserver': ['apps/udpsend/udpserver.cc'] + libnet + core,
     'apps/udpsend/tcpserver': ['apps/udpsend/tcpserver.cc'] + libnet + core,
     'tests/blkdiscard_test': ['tests/blkdiscard_test.cc'] + core,
     'tests/sstring_test': ['tests/sstring_test.cc'] + core,
