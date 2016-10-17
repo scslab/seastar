@@ -104,7 +104,9 @@ private:
 
   future<stop_iteration> pingpong(void) {
     _ts0 = get_time::now();
-    return _tx.write(data, PKT_SIZE).then_wrapped([this] (auto&& f) {
+    auto pkt = packet::from_static_data(data, PKT_SIZE);
+    // return _tx.write(data, PKT_SIZE).then_wrapped([this] (auto&& f) {
+    return _tx.write(std::move(pkt)).then_wrapped([this] (auto&& f) {
       try {
         f.get();
         _client.add_sent();

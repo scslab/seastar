@@ -216,6 +216,7 @@ apps = [
     'apps/udpsend/udpserver',
     'apps/udpsend/tcpclient',
     'apps/udpsend/tcpserver',
+    'apps/mutated/mutated',
     ]
 
 all_artifacts = apps + tests + ['libseastar.a', 'seastar.pc']
@@ -391,6 +392,14 @@ deps = {
     'apps/udpsend/udpserver': ['apps/udpsend/udpserver.cc'] + libnet + core,
     'apps/udpsend/tcpclient': ['apps/udpsend/tcpclient.cc'] + libnet + core,
     'apps/udpsend/tcpserver': ['apps/udpsend/tcpserver.cc'] + libnet + core,
+    'apps/mutated/mutated':
+        [ 'apps/mutated/accum.cc'
+        , 'apps/mutated/conn.cc'
+        , 'apps/mutated/main.cc'
+        , 'apps/mutated/results.cc'
+        , 'apps/mutated/smutated.cc'
+        , 'apps/mutated/worker.cc'
+        ] + libnet + core,
     'tests/blkdiscard_test': ['tests/blkdiscard_test.cc'] + core,
     'tests/sstring_test': ['tests/sstring_test.cc'] + core,
     'tests/httpd': ['tests/httpd.cc'] + http + core + boost_test_lib,
