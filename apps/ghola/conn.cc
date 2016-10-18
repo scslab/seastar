@@ -1,3 +1,4 @@
+#include <vector>
 #include <stdexcept>
 
 #include "conn.hh"
@@ -6,10 +7,13 @@
 
 static constexpr uint64_t WORKLOAD_SIZE = 1000;
 
-Conn::Conn(connected_socket &&fd)
+Conn::Conn(connected_socket &&fd, std::vector<uint64_t> & iatimes, bool save_ia)
     : fd_{std::move(fd)}
     , rx_{fd_.input()}
     , tx_{fd_.output()}
+    , iatimes_{iatimes}
+    , save_ia_{save_ia}
+    , last_ts_{}
     , wl_{WORKLOAD_SIZE}
     , rsp_{}
 {
@@ -22,6 +26,15 @@ future<stop_iteration> Conn::handle_request(void) {
             return make_ready_future<stop_iteration>(stop_iteration::yes);
         } else {
           const SynReq *req = reinterpret_cast<const SynReq *>(buf.get());
+          if (save_ia_) {
+              auto now = std::chrono::steady_clock::now();
+              if (last_ts_ == std::chrono::steady_clock::time_point{}) {
+                  last_ts_ = now;
+              } else {
+                  iatimes_.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_ts_).count());
+                  last_ts_ = now;
+              }
+          }
           if (req->delays[0] > 0) {
               if (req->nr > REQ_MAX_DELAYS) {
                   throw std::runtime_error("run_request: too many delays in request");

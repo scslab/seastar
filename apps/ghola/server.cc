@@ -13,6 +13,7 @@ Server::Server(void)
 {
   app_.add_options()
     ("port", po::value<uint16_t>()->default_value(8080), "TCP server port")
+    ("ia-file", po::value<std::string>(), "save iatimes to file")
     ;
 }
 
@@ -20,6 +21,9 @@ void Server::parse_config(void)
 {
     auto&& config = app_.configuration();
     cfg_.port = config["port"].as<uint16_t>();
+    if (config.count("ia-file")) {
+        cfg_.ia_file = config["ia-file"].as<std::string>();
+    }
     workers_ = std::make_unique<distributed<Worker>>();
 }
 
