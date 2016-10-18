@@ -23,7 +23,8 @@ class Schedule
     std::mt19937 randgen_;
 
     mut::time_point start_{};
-    uint64_t idx_{0};
+    uint64_t sent_{0};
+    uint64_t rcvd_{0};
 
   public:
     explicit Schedule(Config &cfg)
@@ -73,30 +74,26 @@ class Schedule
     Schedule &operator=(Schedule &&) = delete;
     Schedule &operator=(const Schedule &) = delete;
 
-    uint64_t req_pers(void) const noexcept { return reqs_pers_; }
-
-    void start(void) noexcept { start_ = mut::clock::now(); }
-
-    bool finished(void) const noexcept { return idx_ >= deadlines_.size(); }
-
-    bool start_measure(void) const noexcept { return idx_ == warm_reqs_; }
-
+    bool start_measure(void) const noexcept { return sent_ == warm_reqs_; }
     bool measure_request(void) const noexcept
     {
-        return idx_ >= warm_reqs_ and idx_ < (warm_reqs_ + meas_reqs_);
+        return sent_ >= warm_reqs_ and sent_ < (warm_reqs_ + meas_reqs_);
     }
+    bool end_measure(void) const noexcept { return rcvd_ == warm_reqs_ + meas_reqs_; }
+    bool finished(void) const noexcept { return sent_ >= deadlines_.size(); }
+    bool end_experiment(void) const noexcept { return rcvd_ == deadlines_.size(); }
 
+    void start(void) noexcept { start_ = mut::clock::now(); }
     mut::ns next(void) noexcept
     {
         auto now_relative = mut::clock::now() - start_;
-        return deadlines_[idx_++] - now_relative;
+        return deadlines_[sent_++] - now_relative;
     }
-
+    void rcvd_response(void) noexcept { rcvd_++; }
     std::vector<mut::ns> &deadlines(void) { return deadlines_; }
 
+    uint64_t req_pers(void) const noexcept { return reqs_pers_; }
     uint64_t samples(void) const noexcept { return meas_reqs_; }
-
-    uint64_t total_requests(void) const noexcept { return deadlines_.size(); }
 };
 
 #endif /* MUTATED_SCHEDULE_HH */

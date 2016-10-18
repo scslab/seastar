@@ -52,7 +52,8 @@ future<> Conn::send_request(bool measure)
 {
     SynReq &r = syngen_();
     uint64_t tag = r.tag;
-    requests_.emplace_back(tag, measure, r.delays[0]);
+    uint64_t del = r.delays[0];
+    requests_.emplace_back(tag, measure, del);
     return tx_.write((char *)&r, sizeof(SynReq))
       .then_wrapped([this](auto &&f) {
           // TODO: unify results settting functions

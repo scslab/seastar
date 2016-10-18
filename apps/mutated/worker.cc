@@ -17,14 +17,16 @@ Worker::Worker(Config &cfg)
   : cfg_{cfg}
   , conns_{}
   , schedule_{cfg}
-  , rcvd_reqs_{0}
   , finished_{}
   , results_{schedule_.samples()}
 {
     conns_.reserve(cfg_.nconns);
 }
 
-future<> Worker::stop() { return make_ready_future(); }
+future<> Worker::stop()
+{
+  return make_ready_future();
+}
 
 lw_shared_ptr<Conn> Worker::get_connection(void)
 {
@@ -63,11 +65,11 @@ future<> Worker::run_recv(void)
     return parallel_for_each(conns_, [this](lw_shared_ptr<Conn> c) {
         return keep_doing([this, c] {
             return c->recv_request().then([this] {
-                rcvd_reqs_++;
-                if (schedule_.samples() == results_.size()) {
+                schedule_.rcvd_response();
+                if (schedule_.end_measure()) {
                     // TODO: unify results settting functions
                     results_.end_measurements();
-                } else if (rcvd_reqs_ >= schedule_.total_requests()) {
+                } else if (schedule_.end_experiment()) {
                     finished_.set_value();
                 }
                 return make_ready_future();
