@@ -401,7 +401,13 @@ deps = {
         , 'apps/mutated/smutated.cc'
         , 'apps/mutated/worker.cc'
         ] + libnet + core,
-    'apps/ghola/ghola': ['apps/ghola/ghola.cc'] + libnet + core,
+    'apps/ghola/ghola':
+        [ 'apps/ghola/main.cc'
+        , 'apps/ghola/server.cc'
+        , 'apps/ghola/worker.cc'
+        , 'apps/ghola/conn.cc'
+        , 'apps/ghola/workload.cc'
+        ] + libnet + core,
     'tests/blkdiscard_test': ['tests/blkdiscard_test.cc'] + core,
     'tests/sstring_test': ['tests/sstring_test.cc'] + core,
     'tests/httpd': ['tests/httpd.cc'] + http + core + boost_test_lib,
